@@ -1,0 +1,108 @@
+html, body {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+
+    font-family: 'Lato', sans-serif;
+    font-size: 125%;
+    text-align: center;
+
+    background-color: #222;
+}
+
+#main-container {
+    transition: filter 1s;
+}
+
+.blurred {
+    filter: blur(50px);
+}
+
+.box {
+    background-color: #eee;
+    border: 1px solid #555;
+
+    margin: 0 auto 2em auto;
+    padding-bottom: 0.75em;
+
+    width: 100%;
+    max-width: 40em;
+}
+
+#stream-state {
+    font-weight: bold;
+}
+
+#stream-state.stream-state-stopped {
+    color: #777;
+}
+
+#stream-state.stream-state-paused {
+    color: #aa0;
+}
+
+#stream-state.stream-state-streaming {
+    color: #0a0;
+}
+
+.stream-act {
+    font-size: 1em;
+    
+    cursor: pointer;
+    padding: 0.5em;
+
+    border: 1px solid #555;
+    background: #080;
+    color: white;
+}
+
+.stream-act:hover, .stream-act:focus {
+    background: #060;
+}
+
+.stream-act:disabled {
+    cursor: not-allowed;
+    background: #353;
+    color: gray;
+}
+
+.small {
+    font-size: 0.6em;
+}
+
+table {
+    margin-left: auto;
+    margin-right: auto;
+    font-size: 0.8em;
+}
+
+tr:nth-child(even) {
+    background-color: #ddd;
+}
+
+td {
+    padding: 0.25em;
+}
+
+#disconnected-modal-container {
+    position: absolute;
+    top: 0;
+    
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    
+    width: 100vw;
+    height: 100vh;
+    
+    transition: opacity 1s;
+}
+
+#disconnected-modal-container.hidden {
+    opacity: 0;
+}
+
+#disconnected-modal {
+    background: rgba(255, 255, 255, 0.25);
+    padding: 5em;
+}

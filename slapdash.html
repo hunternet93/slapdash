@@ -1,0 +1,46 @@
+<html>
+    <head>
+        <title>Slapdash Video Streamer</title>
+        <link rel="stylesheet" href="slapdash.css">
+        <meta charset="utf-8" /> 
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link href="https://fonts.googleapis.com/css?family=Lato:400,700" rel="stylesheet">  
+    </head>
+    <body>
+        <script src="slapdash.js"></script>
+        
+        <div id="main-container" class="blurred">
+            <div id="stream-control" class="box">
+                <h3>Slapdash Status</h3>
+                <p id="stream-state">unknown</p>
+                
+                <button id="stream-act-restart" class="stream-act" data-act="restart">Restart</button>
+                <button id="stream-act-stop" class="stream-act" data-act="stop">Stop</button>
+                <button id="stream-act-start"class="stream-act" data-act="start">Start</button>
+                
+                <div class="small">
+                    <p>
+                        Streaming to
+                        <a id="stream-view" target="_blank" href=""><span id="stream-location">[loading]</span></a>
+                    </p>
+                </div>
+            </div>
+            
+            <div class="box">
+                <h3>Schedule</h3>
+                <table id="stream-schedule"></table>
+            </div>
+            
+            <div class="box">
+                <h3>Log</h3>
+                <table id="stream-log"></table>
+            </div>
+        </div>
+        
+        <div id="disconnected-modal-container">
+            <div id="disconnected-modal">
+                <h3>Connecting...</h3>
+            </div>
+        </div>
+    </div>
+</html>
