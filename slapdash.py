@@ -2,8 +2,15 @@ import sys
 import yaml
 import schedule
 
+from datetime import datetime
+
 import asyncio, gbulb, websockets
 gbulb.install()
+
+try:
+    from MeteorClient import MeteorClient
+except ImportError:
+    MeteorClient = None
 
 import gi
 gi.require_version('Gst', '1.0')
@@ -24,8 +31,6 @@ class Main:
         
         self.sockets = set()
         self.queues = set()
-
-        self.elements = set()
         
         self.pipeline = Gst.Pipeline()
         self.clock = self.pipeline.get_pipeline_clock()
@@ -38,6 +43,8 @@ class Main:
     
     def build_pipeline(self):
         self.elements = set()
+        self.muxqs = set()
+        self.stop_actions = []
         
         audio_encode_props = settings.get('audio_settings')
         
@@ -60,6 +67,15 @@ class Main:
             name = list(rate)[0]
             props = rate[name]
             
+            rate_is_used = False
+            for target in settings['targets']:
+                print(name, name in target[list(target)[0]]['rates'])
+                if name in target[list(target)[0]]['rates']:
+                    rate_is_used = True
+                    break
+            
+            if not rate_is_used: continue
+            
             caps = ['video/x-raw']
 
             if props.get('width'):
@@ -76,32 +92,80 @@ class Main:
 
             caps = ', '.join(caps)
 
-            encode_props = {
-                'tune': 'zerolatency',
-                'option-string': 'scenecut=0'
-            }
-            
-            encode_props.update(props)
+            if props.get('tune') == None:
+                props['tune'] = 'zerolatency'
+            elif props.get('tune') == '':
+                del props['tune']
+
+            if props.get('option-string') == None:
+                props['option-string'] = 'scenecut=0'
+            elif props.get('option-string') == None:
+                del props['tune']
             
             self.malm([
                 {'queue': {'name': 'v{}'.format(name)}},
                 'videorate',
                 'videoscale',
                 {'capsfilter': {'caps': caps}},
-                {'x264enc': encode_props},
+                {'x264enc': props},
                 {'capsfilter': {'caps': 'video/x-h264, profile=baseline'}},
                 'h264parse',
-                {'flvmux': {'name': 'm{}'.format(name), 'streamable': True}},
-                {'rtmpsink': {'location': settings['stream_location'] + name}}
+                {'tee': {'name': 't{}'.format(name)}}
             ])
-            
-            self.vinput.link(getattr(self, 'v{}'.format(name)))
 
-            q = Gst.ElementFactory.make('queue')
-            self.pipeline.add(q)
-            self.aall.link(q)
-            q.link(getattr(self, 'm{}'.format(name)))
+            self.vinput.link(getattr(self, 'v{}'.format(name)))
         
+        for target in settings['targets']:
+            name = list(target)[0]
+            props = target[name]
+            
+            filenames = []
+                        
+            for rate in props['rates']:
+                if props['type'] == 'rtmp':
+                    muxer = {'flvmux': {'name': 'm{}{}'.format(name, rate), 'streamable': True}}
+                    sink = {'rtmpsink': {'location': props['location'] + rate}}
+
+                elif props['type'] == 'file':
+                    ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    l = props['location']
+                    prefix = l[:l.rfind('/')]
+                    filename = '{} {}{}.{}'.format(ts, l[l.rfind('/') + 1:], rate, props['muxer'])
+                    location = '{}/{}'.format(prefix, filename)
+
+                    sink = {'filesink': {'location': location}}
+                    filenames.append(filename)
+
+                    if props['muxer'] == 'mp4':
+                        muxer = {'mp4mux': {'name': 'm{}{}'.format(name, rate), 'faststart': True}}
+                    elif props['muxer'] == 'mkv':
+                        muxer = {'matroskamux': {'name': 'm{}{}'.format(name, rate)}}
+
+                self.malm([muxer, sink])
+                
+                mux = getattr(self, 'm{}{}'.format(name, rate))
+                rate_tee = getattr(self, 't{}'.format(rate))
+                
+                vq = Gst.ElementFactory.make('queue')
+                aq = Gst.ElementFactory.make('queue')
+                
+                self.muxqs.add(vq)
+                self.muxqs.add(aq)
+                
+                self.pipeline.add(vq)
+                self.pipeline.add(aq)
+                
+                rate_tee.link(vq)
+                vq.link(mux)
+                
+                self.aall.link(aq)
+                aq.link(mux)
+            
+            action = props.get('stop_action')
+            if action:
+                action['filenames'] = filenames
+                self.stop_actions.append(action)
+                
     def malm(self, to_add):
         # Make-add-link multi
         prev = None
@@ -155,8 +219,7 @@ class Main:
 
     def stop(self): 
         print('Exiting...')
-        Gst.debug_bin_to_dot_file(self.pipeline, Gst.DebugGraphDetails.ALL, 'stream')
-        self.pipeline.set_state(Gst.State.NULL)
+        self.stream_stop()
         self.loop.stop()
         
     def do_keyframe(self, user_data):
@@ -202,14 +265,45 @@ class Main:
         self.stream_start()
 
     def stream_stop(self):
+        if self.stream_state == 'stopped': return
+
         print('stopping stream')
+        Gst.debug_bin_to_dot_file(self.pipeline, Gst.DebugGraphDetails.ALL, 'slapdash')
+
+        for queue in self.muxqs:
+            muxpad = queue.get_static_pad('src').get_peer()
+            muxpad.send_event(Gst.Event.new_eos())
+
         self.pipeline.set_state(Gst.State.NULL)
         for element in self.elements: self.pipeline.remove(element)
 
         self.stream_state = 'stopped'
         self.publish('state stopped')
+        
+        print(self.stop_actions)
+        for action in self.stop_actions:
+            if action.get('type') == 'cedar_media_add':
+                if not MeteorClient:
+                    print('Cannot perform stop action, meteor not installed')
+                    return
+            
+            print('Attempting to connect to Cedar server')
+            cedar = MeteorClient('ws://{}/websocket'.format(action.get('server')))
+            cedar.on('connected', lambda: self.cedar_connected(cedar, action))
+            cedar.on('failed', lambda: self.cedar_connect_failed(action.get('server')))
+            cedar.connect()
     
+    def cedar_connected(self, cedar, action):
+        for filename in action['filenames']:
+            print('Direct-adding file to Cedar server: ', filename)
+            cedar.call('mediaDirectAdd', [filename])
+    
+    def cedar_connect_failed(self, server):
+        print('Failed to connecte to Cedar server at ', server)
+        
     def stream_start(self):
+        if self.stream_state == 'streaming': return
+
         print('starting stream')
         self.build_pipeline()
         self.pipeline.set_state(Gst.State.PLAYING)
@@ -240,7 +334,7 @@ class Main:
         self.queues.add(queue)
 
         queue.put_nowait('state {}'.format(self.stream_state))
-        queue.put_nowait('stream_location {}'.format(settings['stream_location']))
+#        queue.put_nowait('stream_location {}'.format(settings['stream_location']))
         
         for job in schedule.jobs:
             queue.put_nowait('schedule {} {}'.format(job.job_func.__name__, job.next_run))

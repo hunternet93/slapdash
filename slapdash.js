@@ -5,8 +5,6 @@ window.onload = function () {
     var stream_schedule = document.querySelector('#stream-schedule');
     var stream_log = document.querySelector('#stream-log');
     var stream_state = document.querySelector('#stream-state');
-    var stream_location = document.querySelector('#stream-location');
-    var stream_view = document.querySelector('#stream-view');
     
     var act_restart = document.querySelector('#stream-act-restart');
     var act_stop = document.querySelector('#stream-act-stop');
@@ -17,12 +15,19 @@ window.onload = function () {
     ws.onopen = (event) => {
         main_container.className = '';
         disconnected_modal_container.className = 'hidden';
+        
+        window.setTimeout(() => {
+            console.log('blah');
+            disconnected_modal_container.className = 'hidden disabled';
+        }, 1000);
     };
 
     ws.onmessage = (event) => {
         var do_log = true;
         var type = event.data.substr(0, event.data.indexOf(' '));
         var data = event.data.substr(event.data.indexOf(' ') + 1);
+        
+        console.log(type, data);
         
         if (type == 'state') {
             stream_state.innerHTML = data;
@@ -51,11 +56,6 @@ window.onload = function () {
             row.appendChild(time);
             
             stream_schedule.appendChild(row);
-        } else if (type == 'stream_location') {
-            do_log = false;
-            url = data + '.mpd';
-            stream_location.innerHTML = url;
-            stream_view.href = `http://dashif.org/reference/players/javascript/v2.4.1/samples/dash-if-reference-player/index.html?url=${url}`;
         }
         
         if (do_log) {

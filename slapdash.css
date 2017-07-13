@@ -95,11 +95,15 @@ td {
     width: 100vw;
     height: 100vh;
     
-    transition: opacity 1s;
+    transition: opacity 1s display 1s ;
 }
 
 #disconnected-modal-container.hidden {
     opacity: 0;
+}
+
+#disconnected-modal-container.disabled {
+    display: none;
 }
 
 #disconnected-modal {
