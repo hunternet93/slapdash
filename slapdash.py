@@ -55,7 +55,7 @@ class Main:
             audio_encoder = 'avenc_aac'
         
         if audio_encode_props.get('bitrate'):
-            audio_encode_props['bitrate'] *= 100
+            audio_encode_props['bitrate'] *= 1000
                 
         self.malm(settings['audio_source'] + [
             'audioconvert',
