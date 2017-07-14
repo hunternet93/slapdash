@@ -46,14 +46,20 @@ class Main:
         self.muxqs = set()
         self.stop_actions = []
         
-        audio_encode_props = settings.get('audio_settings')
+        audio_encode_props = settings.get('audio_settings', {}).copy()
+
+        if audio_encode_props.get('encoder'):
+            audio_encoder = audio_encode_props['encoder']
+            del audio_encode_props['encoder']
+        else:
+            audio_encoder = 'avenc_aac'
         
         if audio_encode_props.get('bitrate'):
             audio_encode_props['bitrate'] *= 100
                 
         self.malm(settings['audio_source'] + [
             'audioconvert',
-            {'avenc_aac': audio_encode_props},
+            {audio_encoder: audio_encode_props},
             'aacparse',
             {'tee': {'name': 'aall'}}
         ])
@@ -99,8 +105,13 @@ class Main:
 
             if props.get('option-string') == None:
                 props['option-string'] = 'scenecut=0'
-            elif props.get('option-string') == None:
-                del props['tune']
+            elif props.get('option-string') == '':
+                del props['option-string']
+
+            if props.get('speed-preset') == None:
+                props['speed-preset'] = 1
+            elif props.get('speed-preset') == '':
+                del props['spreed-preset']
             
             self.malm([
                 {'queue': {'name': 'v{}'.format(name)}},

@@ -1,12 +1,5 @@
 video_source:
-    - shmsrc:
-        is-live: true
-        do-timestamp: true
-        socket-path: /tmp/displayminion_shm
-    - capsfilter:
-        caps: video/x-raw, width = 1920, height = 1080, framerate = 60/1, format = RGBA
-    - videoflip:
-        video-direction: 5
+    - videotestsrc
 
 audio_source:
     - audiotestsrc
@@ -38,17 +31,17 @@ audio_settings:
     bitrate: 128
 
 targets:
-#    - dash:
-#        type: rtmp
-#        location: https://video.crosscommunity.com/dash/test2
-#        rates:
-#            - _low
-#            - _med
-#            - _high
+    - dash:
+        type: rtmp
+        location: https://example.com/dash/test
+        rates:
+            - _low
+            - _med
+            - _high
     - local:
         type: file
         muxer: mp4
-        location: /home/hunter/Projects/Cedar/cedarserver/.uploads/upload_test
+        location: /tmp/test
         rates:
             - _recording
         stop_action:
