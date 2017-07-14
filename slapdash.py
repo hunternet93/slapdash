@@ -36,6 +36,8 @@ class Main:
         self.clock = self.pipeline.get_pipeline_clock()
         
         self.stream_state = 'stopped'
+        
+        self.force_keyframes = False
 
         self.bus = self.pipeline.get_bus()
         self.bus.add_signal_watch()
@@ -45,6 +47,9 @@ class Main:
         self.elements = set()
         self.muxqs = set()
         self.stop_actions = []
+        
+        video_settings = settings.get('video_settings', {})
+        self.force_keyframes = video_settings.get('force_keyframes', True)
         
         audio_encode_props = settings.get('audio_settings', {}).copy()
 
@@ -235,7 +240,7 @@ class Main:
         
     def do_keyframe(self, user_data):
         # Forces a keyframe on all video encoders
-        if self.stream_state == 'streaming':
+        if self.stream_state == 'streaming' and self.force_keyframes:
             event = GstVideo.video_event_new_downstream_force_key_unit(self.clock.get_time(), 0, 0, True, 0)
             self.pipeline.send_event(event)
         
