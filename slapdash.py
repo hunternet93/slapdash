@@ -42,6 +42,13 @@ class Main:
         self.bus = self.pipeline.get_bus()
         self.bus.add_signal_watch()
         self.bus.connect('message', self.on_message)
+        
+        if settings.get('cedar'):
+            self.cedar = MeteorClient('ws://{}/websocket'.format(settings['cedar']['server']))
+            self.cedar.on('connected', self.cedar_watch_connected)
+            self.cedar.connect()
+            self.cedar_start_trigger = settings['cedar']['start_trigger']
+            self.cedar_stop_trigger = settings['cedar']['stop_trigger']
     
     def build_pipeline(self):
         self.elements = set()
@@ -218,6 +225,22 @@ class Main:
             if prev: prev.link(element)
             
             prev = element
+    
+    def cedar_watch_connected(self):
+        print('cedar watch connected')
+        self.cedar.subscribe('customactions');
+        self.cedar.on('added', self.cedar_watch_added)
+    
+    def cedar_watch_added(self, collection, _id, fields):
+        action_string = fields.get('action_string')
+        
+        if action_string == self.cedar_start_trigger:
+            print('starting due to cedar trigger')
+            self.stream_start()
+        
+        elif action_string == self.cedar_stop_trigger:
+            print('stopping due to cedar trigger')
+            self.stream_stop()
             
     def run(self):
         GLib.timeout_add(2 * 1000, self.do_keyframe, None)
@@ -296,7 +319,6 @@ class Main:
         self.stream_state = 'stopped'
         self.publish('state stopped')
         
-        print(self.stop_actions)
         for action in self.stop_actions:
             if action.get('type') == 'cedar_media_add':
                 if not MeteorClient:
@@ -350,7 +372,6 @@ class Main:
         self.queues.add(queue)
 
         queue.put_nowait('state {}'.format(self.stream_state))
-#        queue.put_nowait('stream_location {}'.format(settings['stream_location']))
         
         for job in schedule.jobs:
             queue.put_nowait('schedule {} {}'.format(job.job_func.__name__, job.next_run))
@@ -374,7 +395,7 @@ class Main:
         
 main = Main()
 
-for item in settings['schedule']:
+for item in settings.get('schedule', []):
     day = list(item)[0]
     
     for time, action in item[day].items():

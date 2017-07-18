@@ -1,13 +1,14 @@
-stream_location: https://example.com/dash/stream
-
 video_source:
     - videotestsrc:
-        pattern: 1
+        is-live: true
     - capsfilter:
-        caps: video/x-raw, width = 1920, height = 1080, framerate = 30/1
+        caps: video/x-raw, width = 1920, height = 1080, framerate = 60/1, format = RGBA
 
 audio_source:
-    - audiotestsrc
+    - audiotestsrc:
+        is-live: true
+        wave: 6
+        volume: 0.2
 
 video_rates:
     - _low:
@@ -17,22 +18,48 @@ video_rates:
     - _med:
         width: 1280
         height: 720
-        bitrate: 1500
+        bitrate: 2000
     - _high:
         width: 1920
         height: 1080
-        bitrate: 5000
+        bitrate: 4000
+    - _recording:
+        width: 1920
+        height: 1080
+        bitrate: 4000
+        tune: ''
+        option-string: ''
+        speed-preset: 5
+        qp-min: 24
+        
 
 audio_settings:
     bitrate: 128
 
+targets:
+    - dash:
+        type: rtmp
+        location: https://example.com/dash/test
+        rates:
+            - _low
+            - _med
+            - _high
+    - local:
+        type: file
+        muxer: mp4
+        location: /tmp/test
+        rates:
+            - _recording
+        stop_action:
+            type: cedar_media_add
+            server: 'localhost:3000'
+
+cedar:
+    server: 'localhost:3000'
+    start_trigger: 'start recording'
+    stop_trigger: 'stop recording'
+    
 schedule:
-    - daily:
-        "16:30": start
-        "18:00": stop
-    - monday:
-        "03:15": start
-        "05:00": stop
     - sunday:
         "08:15": start
         "12:45": stop
