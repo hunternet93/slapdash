@@ -150,7 +150,7 @@ class Main:
                     sink = {'rtmpsink': {'location': props['location'] + rate}}
 
                 elif props['type'] == 'file':
-                    ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    ts = datetime.now().strftime('%Y-%m-%d %H.%M.%S')
                     l = props['location']
                     prefix = l[:l.rfind('/')]
                     filename = '{} {}{}.{}'.format(ts, l[l.rfind('/') + 1:], rate, props['muxer'])
