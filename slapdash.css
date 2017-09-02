@@ -29,6 +29,20 @@ html, body {
     max-width: 40em;
 }
 
+.box-header {
+    margin-bottom: 1em;
+}
+
+.box-header h3 {
+    margin-bottom: .1em;
+}
+
+.box-header p {
+    font-size: 50%;
+    margin-top: .1em;
+    margin-bottom: .1em;
+}
+
 #stream-state {
     font-weight: bold;
 }

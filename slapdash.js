@@ -1,3 +1,7 @@
+function getURLParameter(name) {
+  return decodeURIComponent((new RegExp('[?|&]' + name + '=' + '([^&;]+?)(&|#|;|$)').exec(location.search) || [null, ''])[1].replace(/\+/g, '%20')) || null;
+}
+
 window.onload = function () {
     var main_container = document.querySelector('#main-container');
     var disconnected_modal_container = document.querySelector('#disconnected-modal-container');
@@ -10,7 +14,17 @@ window.onload = function () {
     var act_stop = document.querySelector('#stream-act-stop');
     var act_start = document.querySelector('#stream-act-start');
 
-    ws = new WebSocket(`ws://${window.location.hostname}:8081`);
+    var hostname = getURLParameter('hostname');
+    if (!hostname) var hostname = window.location.hostname;
+    
+    var title = getURLParameter('title');
+    if (!title) var title = hostname;
+    document.querySelector('#server-title').innerHTML = title;
+    
+    var port = parseFloat(getURLParameter('port'));
+    if (!port) var port = 8081
+
+    ws = new WebSocket(`ws://${hostname}:${port}`);
     
     ws.onopen = (event) => {
         main_container.className = '';

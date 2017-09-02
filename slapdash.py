@@ -43,9 +43,13 @@ class Main:
         self.bus.add_signal_watch()
         self.bus.connect('message', self.on_message)
         
+        self.connect_cedar()
+        
+    def connect_cedar(self):
         if settings.get('cedar'):
             self.cedar = MeteorClient('ws://{}/websocket'.format(settings['cedar']['server']))
             self.cedar.on('connected', self.cedar_watch_connected)
+            self.cedar.on('closed', self.cedar_watch_failed)
             self.cedar.connect()
             self.cedar_start_trigger = settings['cedar']['start_trigger']
             self.cedar_stop_trigger = settings['cedar']['stop_trigger']
@@ -231,6 +235,10 @@ class Main:
         self.cedar.subscribe('customactions');
         self.cedar.on('added', self.cedar_watch_added)
     
+    def cedar_watch_disconnected(self, code, reason):
+        print('cedar watch disconnected, retrying (code: {} reason: {})'.format(code, reason))
+        self.connect_cedar()
+    
     def cedar_watch_added(self, collection, _id, fields):
         action_string = fields.get('action_string')
         
@@ -246,8 +254,9 @@ class Main:
         GLib.timeout_add(2 * 1000, self.do_keyframe, None)
 
         asyncio.ensure_future(self.run_scheduler())
-
-        self.ws_server = websockets.serve(self.handler, '0.0.0.0', 8081)
+        
+        port = int(settings.get('port', 8081))
+        self.ws_server = websockets.serve(self.handler, '0.0.0.0', port)
         self.loop.run_until_complete(self.ws_server)
         self.loop.run_forever()
 
