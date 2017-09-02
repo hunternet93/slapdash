@@ -49,7 +49,7 @@ class Main:
         if settings.get('cedar'):
             self.cedar = MeteorClient('ws://{}/websocket'.format(settings['cedar']['server']))
             self.cedar.on('connected', self.cedar_watch_connected)
-            self.cedar.on('closed', self.cedar_watch_failed)
+            self.cedar.on('closed', self.cedar_watch_disconnected)
             self.cedar.connect()
             self.cedar_start_trigger = settings['cedar']['start_trigger']
             self.cedar_stop_trigger = settings['cedar']['stop_trigger']
