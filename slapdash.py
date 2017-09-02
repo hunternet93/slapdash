@@ -164,7 +164,7 @@ class Main:
                     filenames.append(filename)
 
                     if props['muxer'] == 'mp4':
-                        muxer = {'mp4mux': {'name': 'm{}{}'.format(name, rate), 'faststart': True}}
+                        muxer = {'mp4mux': {'name': 'm{}{}'.format(name, rate), 'faststart': False}}
                     elif props['muxer'] == 'mkv':
                         muxer = {'matroskamux': {'name': 'm{}{}'.format(name, rate)}}
 
