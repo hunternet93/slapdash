@@ -50,6 +50,7 @@ targets:
         type: file
         muxer: mp4
         location: /tmp/test
+        erase_old: false
         rates:
             - _recording
         stop_action:

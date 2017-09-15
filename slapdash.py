@@ -1,3 +1,4 @@
+import os
 import sys
 import yaml
 import schedule
@@ -157,8 +158,14 @@ class Main:
                     ts = datetime.now().strftime('%Y-%m-%d %H.%M.%S')
                     l = props['location']
                     prefix = l[:l.rfind('/')]
+
                     filename = '{} {}{}.{}'.format(ts, l[l.rfind('/') + 1:], rate, props['muxer'])
                     location = '{}/{}'.format(prefix, filename)
+                    
+                    if props.get('erase_old'):
+                        for filename in os.listdir(prefix):
+                            if filename.endswith('{}{}.{}'.format(l[l.rfind('/') + 1:], rate, props['muxer'])):
+                                os.unlink(os.path.join(prefix, filename))
 
                     sink = {'filesink': {'location': location}}
                     filenames.append(filename)
