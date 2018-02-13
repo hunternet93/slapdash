@@ -18,7 +18,7 @@ async def netsender_create_connection(loop, location, port, filename, sink, publ
             location, port
         )
     except Exception as e:
-        msg = ('Error connecting to "{}:{}": {}'.format(location, port, e)
+        msg = ('Error connecting to "{}:{}": {}'.format(location, port, e))
         print(msg)
         publish(msg)
         sink.set_property('max-buffers', 0) # Don't waste memory
