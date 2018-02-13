@@ -11,11 +11,18 @@ from gi.repository import Gst, GstApp
 # Next messages are a sample to write to file.
 # Connection is closed when file is finished.
 
-async def netsender_create_connection(loop, func, location, port):
+async def netsender_create_connection(loop, location, port, filename, sink, publish):
     try:
-        await loop.create_connection(func, location, port)
+        await loop.create_connection(
+            lambda: NetSender(location, filename, sink, publish, loop),
+            location, port
+        )
     except Exception as e:
-        print('Error connecting to "{}:{}": {}'.format(location, port, e))
+        msg = ('Error connecting to "{}:{}": {}'.format(location, port, e)
+        print(msg)
+        publish(msg)
+        sink.set_property('max-buffers', 0) # Don't waste memory
+        sink.set_property('wait-on-eos', False) # Let pipeline EOS
 
 class NetSender(asyncio.Protocol):
     def __init__(self, location, filename, appsink, publish, loop):

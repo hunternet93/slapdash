@@ -186,11 +186,11 @@ class Main:
                     
                     sink = Gst.ElementFactory.make('appsink', 'ns{}{}'.format(name, rate))
                     sink.set_property('emit-signals', True)
+                    sink.set_property('drop', True)
                     
                     loop = asyncio.get_event_loop()
                     loop.create_task(netsender_create_connection(
-                        loop, lambda: NetSender(props['location'], filename, sink, self.publish, loop),
-                        props['location'], int(props['port'])
+                        loop, props['location'], int(props['port']), filename, sink, self.publish),
                     ))
 
                 self.malm([muxer, sink])
