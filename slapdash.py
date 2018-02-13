@@ -191,7 +191,7 @@ class Main:
                     loop = asyncio.get_event_loop()
                     loop.create_task(netsender_create_connection(
                         loop, props['location'], int(props['port']), filename, sink, self.publish),
-                    ))
+                    )
 
                 self.malm([muxer, sink])
                 
