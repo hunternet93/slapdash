@@ -7,8 +7,11 @@ window.onload = function () {
     var disconnected_modal_container = document.querySelector('#disconnected-modal-container');
     
     var stream_schedule = document.querySelector('#stream-schedule');
+    var stream_buffers = document.querySelector('#stream-buffers');
     var stream_log = document.querySelector('#stream-log');
     var stream_state = document.querySelector('#stream-state');
+    
+    let buffer_tds = {};
     
     var act_restart = document.querySelector('#stream-act-restart');
     var act_stop = document.querySelector('#stream-act-stop');
@@ -70,8 +73,29 @@ window.onload = function () {
             row.appendChild(time);
             
             stream_schedule.appendChild(row);
+        } else if (type == 'netsend_buffer') {
+            do_log = false;
+            
+            filename = data.substr(data.indexOf(' ') + 1);
+            
+            if (buffer_tds[filename]) {
+                buffer_tds[filename].innerHTML = data.substr(0, data.indexOf(' '));
+            } else {
+                row = document.createElement('tr');
+                
+                blah = document.createElement('td');
+                blah.innerHTML = `<small>${filename}</small>`;
+                row.appendChild(blah);
+                
+                size = document.createElement('td');
+                size.innerHTML = data.substr(0, data.indexOf(' '));
+                row.appendChild(size);
+                buffer_tds[filename] = size;
+                
+                stream_buffers.appendChild(row);
+            }
         }
-        
+                
         if (do_log) {
             var date = new Date();
             

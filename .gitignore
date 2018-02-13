@@ -1,3 +1,11 @@
+# GStreamer .dot pipeline debug files
+*.dot
+*.dot.svg
+
+# YAML config files except example config
+*.yaml
+!example_settings.yaml
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

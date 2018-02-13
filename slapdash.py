@@ -20,6 +20,8 @@ from gi.repository import Gst, GstVideo, GLib
 
 Gst.init(None)
 
+from netsender import NetSender, netsender_create_connection
+
 if not sys.argv[1]:
     print('Usage: slapdash.py <settings_file.yaml>')
     quit()
@@ -32,6 +34,7 @@ class Main:
         
         self.sockets = set()
         self.queues = set()
+        self.elements = set()
         
         self.pipeline = Gst.Pipeline()
         self.clock = self.pipeline.get_pipeline_clock()
@@ -148,7 +151,7 @@ class Main:
             props = target[name]
             
             filenames = []
-                        
+            
             for rate in props['rates']:
                 if props['type'] == 'rtmp':
                     muxer = {'flvmux': {'name': 'm{}{}'.format(name, rate), 'streamable': True}}
@@ -174,6 +177,21 @@ class Main:
                         muxer = {'mp4mux': {'name': 'm{}{}'.format(name, rate), 'faststart': False}}
                     elif props['muxer'] == 'mkv':
                         muxer = {'matroskamux': {'name': 'm{}{}'.format(name, rate)}}
+                
+                elif props['type'] == 'netsend':
+                    ts = datetime.now().strftime('%Y-%m-%d %H.%M.%S')
+                    filename = '{} {}{}.mkv'.format(ts, props['prefix'], rate)
+                    
+                    muxer = {'matroskamux': {'name': 'm{}{}'.format(name, rate)}}
+                    
+                    sink = Gst.ElementFactory.make('appsink', 'ns{}{}'.format(name, rate))
+                    sink.set_property('emit-signals', True)
+                    
+                    loop = asyncio.get_event_loop()
+                    loop.create_task(netsender_create_connection(
+                        loop, lambda: NetSender(props['location'], filename, sink, self.publish, loop),
+                        props['location'], int(props['port'])
+                    ))
 
                 self.malm([muxer, sink])
                 
@@ -204,10 +222,12 @@ class Main:
         # Make-add-link multi
         prev = None
         for desc in to_add:
+            element = None
+            props = None
+            name = None
+
             if type(desc) == str:
                 _type = desc
-                props = None
-                name = None
 
             elif type(desc) == dict:
                 _type = list(desc)[0]
@@ -216,10 +236,14 @@ class Main:
                 name = props.get('name')
                 if name: del props['name']
             
-            element = Gst.ElementFactory.make(_type, name)
-
+            else:
+                element = desc
+            
             if not element:
-                raise Exception('cannot create element {}'.format(_type))
+                element = Gst.ElementFactory.make(_type, name)
+
+                if not element:
+                    raise Exception('cannot create element {}'.format(_type))
 
             self.elements.add(element)
             if name: setattr(self, name, element)
@@ -270,7 +294,7 @@ class Main:
     async def run_scheduler(self):
         while True:
             schedule.run_pending()
-            await asyncio.sleep(1)    
+            await asyncio.sleep(1)
 
     def stop(self): 
         print('Exiting...')
@@ -306,6 +330,11 @@ class Main:
             if not self.stream_state == newstate:
                 self.stream_state = newstate
                 sendmsg = 'state {}'.format(newstate)
+        
+        if msg.type == Gst.MessageType.EOS:
+            self.pipeline.set_state(Gst.State.NULL)
+            self.stream_state = 'stopped'
+            sendmsg = 'state stopped'
 
         if sendmsg:
             print(sendmsg)
@@ -324,41 +353,14 @@ class Main:
 
         print('stopping stream')
         Gst.debug_bin_to_dot_file(self.pipeline, Gst.DebugGraphDetails.ALL, 'slapdash')
-
-        for queue in self.muxqs:
-            muxpad = queue.get_static_pad('src').get_peer()
-            muxpad.send_event(Gst.Event.new_eos())
-
-        self.pipeline.set_state(Gst.State.NULL)
-        for element in self.elements: self.pipeline.remove(element)
-
-        self.stream_state = 'stopped'
-        self.publish('state stopped')
         
-        for action in self.stop_actions:
-            if action.get('type') == 'cedar_media_add':
-                if not MeteorClient:
-                    print('Cannot perform stop action, meteor not installed')
-                    return
-            
-            print('Attempting to connect to Cedar server')
-            cedar = MeteorClient('ws://{}/websocket'.format(action.get('server')))
-            cedar.on('connected', lambda: self.cedar_connected(cedar, action))
-            cedar.on('failed', lambda: self.cedar_connect_failed(action.get('server')))
-            cedar.connect()
-    
-    def cedar_connected(self, cedar, action):
-        for filename in action['filenames']:
-            print('Direct-adding file to Cedar server: ', filename)
-            cedar.call('mediaDirectAdd', [filename])
-    
-    def cedar_connect_failed(self, server):
-        print('Failed to connecte to Cedar server at ', server)
+        self.pipeline.send_event(Gst.Event.new_eos())
         
     def stream_start(self):
         if self.stream_state == 'streaming': return
 
         print('starting stream')
+        for element in self.elements: self.pipeline.remove(element)
         self.build_pipeline()
         self.pipeline.set_state(Gst.State.PLAYING)
     
