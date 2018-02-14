@@ -47,16 +47,30 @@ class Main:
         self.bus.add_signal_watch()
         self.bus.connect('message', self.on_message)
         
+        self.cedar_action_queue = asyncio.Queue()
+        self.cedar_action_fut = None
         self.connect_cedar()
         
     def connect_cedar(self):
         if settings.get('cedar'):
+            if not self.cedar_action_fut:
+                self.cedar_action_fut = self.loop.create_task(self.watch_cedar_action_queue())
+                
             self.cedar = MeteorClient('ws://{}/websocket'.format(settings['cedar']['server']))
             self.cedar.on('connected', self.cedar_watch_connected)
             self.cedar.on('closed', self.cedar_watch_disconnected)
             self.cedar.connect()
             self.cedar_start_trigger = settings['cedar']['start_trigger']
             self.cedar_stop_trigger = settings['cedar']['stop_trigger']
+    
+    async def watch_cedar_action_queue(self):
+        # Ensures stream start/stops are sent from the correct thread.
+        while True:
+            action = await self.cedar_action_queue.get()
+            if action == 'start':
+                self.stream_start()
+            elif action == 'stop':
+                self.stream_stop()
     
     def build_pipeline(self):
         self.elements = set()
@@ -188,9 +202,8 @@ class Main:
                     sink.set_property('emit-signals', True)
                     sink.set_property('drop', True)
                     
-                    loop = asyncio.get_event_loop()
-                    loop.create_task(netsender_create_connection(
-                        loop, props['location'], int(props['port']), filename, sink, self.publish),
+                    self.loop.create_task(netsender_create_connection(
+                        self.loop, props['location'], int(props['port']), filename, sink, self.publish),
                     )
 
                 self.malm([muxer, sink])
@@ -275,11 +288,11 @@ class Main:
         
         if action_string == self.cedar_start_trigger:
             print('starting due to cedar trigger')
-            self.stream_start()
+            self.cedar_action_queue.put_nowait('start')
         
         elif action_string == self.cedar_stop_trigger:
             print('stopping due to cedar trigger')
-            self.stream_stop()
+            self.cedar_action_queue.put_nowait('stop')
             
     def run(self):
         GLib.timeout_add(2 * 1000, self.do_keyframe, None)
