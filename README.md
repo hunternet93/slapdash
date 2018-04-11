@@ -2,7 +2,7 @@
 
 Slapdash is a Gstreamer-based DASH streaming system, designed to encode video and audio at multiple resolutions and bitrates and feed them to an [nginx-rtmp](https://github.com/ut0mt8/nginx-rtmp-module/) server. 
 
-See [https://isrv.pw/html5-live-streaming-with-mpeg-dash](this page) for more information about setting up DASH streaming.
+See [this page](https://isrv.pw/html5-live-streaming-with-mpeg-dash) for more information about setting up DASH streaming.
 
 ### Requirements
 
