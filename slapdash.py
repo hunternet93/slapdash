@@ -8,19 +8,12 @@ from datetime import datetime
 import asyncio, gbulb, websockets
 gbulb.install()
 
-try:
-    from MeteorClient import MeteorClient
-except ImportError:
-    MeteorClient = None
-
 import gi
 gi.require_version('Gst', '1.0')
 gi.require_version('GstVideo', '1.0')
 from gi.repository import Gst, GstVideo, GLib
 
 Gst.init(None)
-
-from netsender import NetSender, netsender_create_connection
 
 if not sys.argv[1]:
     print('Usage: slapdash.py <settings_file.yaml>')
@@ -46,31 +39,6 @@ class Main:
         self.bus = self.pipeline.get_bus()
         self.bus.add_signal_watch()
         self.bus.connect('message', self.on_message)
-        
-        self.cedar_action_queue = asyncio.Queue()
-        self.cedar_action_fut = None
-        self.connect_cedar()
-        
-    def connect_cedar(self):
-        if settings.get('cedar'):
-            if not self.cedar_action_fut:
-                self.cedar_action_fut = self.loop.create_task(self.watch_cedar_action_queue())
-                
-            self.cedar = MeteorClient('ws://{}/websocket'.format(settings['cedar']['server']))
-            self.cedar.on('connected', self.cedar_watch_connected)
-            self.cedar.on('closed', self.cedar_watch_disconnected)
-            self.cedar.connect()
-            self.cedar_start_trigger = settings['cedar']['start_trigger']
-            self.cedar_stop_trigger = settings['cedar']['stop_trigger']
-    
-    async def watch_cedar_action_queue(self):
-        # Ensures stream start/stops are sent from the correct thread.
-        while True:
-            action = await self.cedar_action_queue.get()
-            if action == 'start':
-                self.stream_start()
-            elif action == 'stop':
-                self.stream_stop()
     
     def build_pipeline(self):
         self.elements = set()
@@ -192,20 +160,6 @@ class Main:
                     elif props['muxer'] == 'mkv':
                         muxer = {'matroskamux': {'name': 'm{}{}'.format(name, rate)}}
                 
-                elif props['type'] == 'netsend':
-                    ts = datetime.now().strftime('%Y-%m-%d %H.%M.%S')
-                    filename = '{} {}{}.mkv'.format(ts, props['prefix'], rate)
-                    
-                    muxer = {'matroskamux': {'name': 'm{}{}'.format(name, rate)}}
-                    
-                    sink = Gst.ElementFactory.make('appsink', 'ns{}{}'.format(name, rate))
-                    sink.set_property('emit-signals', True)
-                    sink.set_property('drop', True)
-                    
-                    self.loop.create_task(netsender_create_connection(
-                        self.loop, props['location'], int(props['port']), filename, sink, self.publish),
-                    )
-
                 self.malm([muxer, sink])
                 
                 mux = getattr(self, 'm{}{}'.format(name, rate))
@@ -273,26 +227,6 @@ class Main:
             if prev: prev.link(element)
             
             prev = element
-    
-    def cedar_watch_connected(self):
-        print('cedar watch connected')
-        self.cedar.subscribe('customactions');
-        self.cedar.on('added', self.cedar_watch_added)
-    
-    def cedar_watch_disconnected(self, code, reason):
-        print('cedar watch disconnected, retrying (code: {} reason: {})'.format(code, reason))
-        self.connect_cedar()
-    
-    def cedar_watch_added(self, collection, _id, fields):
-        action_string = fields.get('action_string')
-        
-        if action_string == self.cedar_start_trigger:
-            print('starting due to cedar trigger')
-            self.cedar_action_queue.put_nowait('start')
-        
-        elif action_string == self.cedar_stop_trigger:
-            print('stopping due to cedar trigger')
-            self.cedar_action_queue.put_nowait('stop')
             
     def run(self):
         GLib.timeout_add(2 * 1000, self.do_keyframe, None)
@@ -327,6 +261,8 @@ class Main:
 
         if msg.type == Gst.MessageType.ERROR:
             sendmsg = 'error {}'.format(msg.parse_error())
+            self.pipeline.set_state(Gst.State.NULL)
+            asyncio.ensure_future(self._stream_restart_delay())
         
         if msg.type == Gst.MessageType.WARNING:
             sendmsg = 'warning {}'.format(msg.parse_error())
@@ -358,8 +294,12 @@ class Main:
         asyncio.ensure_future(self._stream_restart_delay())
 
     async def _stream_restart_delay(self):
-        await asyncio.sleep(3) 
-        self.stream_start()
+        await asyncio.sleep(1)
+        
+        if self.stream_state == 'stopped':
+            self.stream_start()
+        else:
+            await self._stream_restart_delay()
 
     def stream_stop(self):
         if self.stream_state == 'stopped': return
